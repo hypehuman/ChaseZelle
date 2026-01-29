@@ -4,11 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace ChaseZelleLib;
 
-public static partial class ChaseZelle
+public static class ChaseZelle
 {
     public static void HtmlToCsv(string htmlPath)
     {
@@ -40,8 +39,8 @@ public static partial class ChaseZelle
         {
             using (var csvWriter = new StreamWriter(csvStream))
             {
-                RowData.Headers.WriteTo(csvWriter);
-                foreach (var row in ParseHtml(htmlRoot))
+                CsvRow.Headers.WriteTo(csvWriter);
+                foreach (var row in ParseHtml(htmlRoot).Reverse())
                 {
                     row.WriteTo(csvWriter);
                 }
@@ -49,12 +48,12 @@ public static partial class ChaseZelle
         }
     }
 
-    private static IEnumerable<RowData> ParseHtml(HtmlNode htmlRoot)
+    private static IEnumerable<CsvRow> ParseHtml(HtmlNode htmlRoot)
     {
         int tbodyCount = 0;
         int tbodyIdCount = 0;
         int tbodyIdMatchCount = 0;
-        var activityRows = new List<(HtmlNode node, string id)>();
+        var txNodes = new List<(HtmlNode node, string id)>();
         foreach (var tbodyNode in htmlRoot.Descendants("tbody"))
         {
             tbodyCount++;
@@ -67,32 +66,34 @@ public static partial class ChaseZelle
 
             tbodyIdCount++;
 
-            var idMatch = TbodyIdPattern().Match(idAttr.Value);
-            if (!idMatch.Success)
+            var id = idAttr.Value;
+            const string idPrefix = "qpReceivedActivity_tBody_";
+            if (!id.StartsWith(idPrefix))
             {
                 continue;
             }
 
             tbodyIdMatchCount++;
 
-            activityRows.Add((tbodyNode, idMatch.Groups[1].Value));
+            txNodes.Add((tbodyNode, id[idPrefix.Length..]));
         }
 
         Console.WriteLine($"{nameof(tbodyCount)}: {tbodyCount}");
         Console.WriteLine($"{nameof(tbodyIdCount)}: {tbodyIdCount}");
         Console.WriteLine($"{nameof(tbodyIdMatchCount)}: {tbodyIdMatchCount}");
-        Console.WriteLine($"Number of unique parents of activity row nodes: {activityRows.Select(pair => pair.node.ParentNode).ToHashSet().Count}");
+        Console.WriteLine($"Number of unique parents of transaction nodes: {txNodes.Select(pair => pair.node.ParentNode).ToHashSet().Count}");
 
-        foreach (var (rowNode, id) in activityRows)
+        foreach (var (txNode, id) in txNodes)
         {
-            var txNode = rowNode.ChildNodes.Single(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("receivedTransaction_"));
+            var rowNode = txNode.ChildNodes.Single(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("receivedTransaction_"));
             yield return new(
                 ID: id,
-                Date: ParseCell(txNode, "Date received "),
-                Status: ParseCell(txNode, "Status", out var memo),
-                Memo: memo,
-                Sender: ParseCell(txNode, "Sender"),
-                Amount: ParseCell(txNode, "Amount")
+                Date: ParseCell(rowNode, "Date received "),
+                Status: ParseCell(rowNode, "Status", out var message),
+                Message: RemoveOuterQuotes(message),
+                Sender: ParseCell(rowNode, "Sender"),
+                Amount: ParseCell(rowNode, "Amount"),
+                TransactionNumber: ParseTransactionNumber(txNode)
             );
         }
     }
@@ -124,8 +125,28 @@ public static partial class ChaseZelle
         return result;
     }
 
-    [GeneratedRegex("^qpReceivedActivity_tBody_(.+)$")]
-    private static partial Regex TbodyIdPattern();
+    private static string? RemoveOuterQuotes(string? input)
+    {
+        if (input == null || !input.StartsWith('"') || !input.EndsWith('"'))
+        {
+            return input;
+        }
+
+        return input[1..^1];
+    }
+
+    private static string? ParseTransactionNumber(HtmlNode txNode)
+    {
+        var detailsNode = txNode.ChildNodes.SingleOrDefault(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("showDetailTr_"));
+        if (detailsNode == null)
+        {
+            // Transaction details are collapsed, so the transaction number isn't shown.
+            return null;
+        }
+
+        var dataNode = detailsNode.Descendants("span").Single(n => n.Attributes["class"]?.Value == "DATA");
+        return dataNode.InnerText;
+    }
 
     /// <summary>
     /// Extracted from <see cref="HtmlNode.Descendants(string)"/>
@@ -136,7 +157,8 @@ public static partial class ChaseZelle
     }
 
     /// <summary>
-    /// Adds quotes and escapes any internal quotes.
+    /// If <paramref name="str"/> is null, returns an empty string.
+    /// Otherwise, returns <paramref name="str"/> wrapped in quotes and with any internal quotes escaped.
     /// Adapted from https://stackoverflow.com/a/6377656
     /// </summary>
     private static string FormatCsvCell(string? str)
@@ -160,22 +182,32 @@ public static partial class ChaseZelle
         return sb.ToString();
     }
 
-    private record class RowData(
+    /// <summary>
+    /// Each property represents one cell of the CSV row.
+    /// </summary>
+    /// <param name="TransactionNumber">
+    /// For transactions from Chase to Chase, this appears to be the same as <paramref name="ID"/>.
+    /// For transactions from other banks, this is different from <paramref name="ID"/> and may include letters.
+    /// Only visible if the transaction details were expanded on the website.
+    /// </param>
+    private record class CsvRow(
         string ID,
         string Date,
         string Status,
-        string? Memo,
+        string? Message,
         string Sender,
-        string Amount
+        string Amount,
+        string? TransactionNumber
     )
     {
-        public static RowData Headers => new(
+        public static CsvRow Headers => new(
             ID: nameof(ID),
             Date: nameof(Date),
             Status: nameof(Status),
-            Memo: nameof(Memo),
+            Message: nameof(Message),
             Sender: nameof(Sender),
-            Amount: nameof(Amount)
+            Amount: nameof(Amount),
+            TransactionNumber: nameof(TransactionNumber)
         );
 
         public void WriteTo(StreamWriter writer)
@@ -185,9 +217,10 @@ public static partial class ChaseZelle
                 FormatCsvCell(ID),
                 FormatCsvCell(Date),
                 FormatCsvCell(Status),
-                FormatCsvCell(Memo),
+                FormatCsvCell(Message),
                 FormatCsvCell(Sender),
                 FormatCsvCell(Amount),
+                FormatCsvCell(TransactionNumber),
             };
 
             var rowStr = string.Join(',', cells);
