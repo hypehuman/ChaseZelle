@@ -4,11 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace ChaseZelleLib;
 
-public static partial class ChaseZelle
+public static class ChaseZelle
 {
     public static void HtmlToCsv(string htmlPath)
     {
@@ -67,15 +66,16 @@ public static partial class ChaseZelle
 
             tbodyIdCount++;
 
-            var idMatch = TbodyIdPattern().Match(idAttr.Value);
-            if (!idMatch.Success)
+            var id = idAttr.Value;
+            const string idPrefix = "qpReceivedActivity_tBody_";
+            if (!id.StartsWith(idPrefix))
             {
                 continue;
             }
 
             tbodyIdMatchCount++;
 
-            txNodes.Add((tbodyNode, idMatch.Groups[1].Value));
+            txNodes.Add((tbodyNode, id[idPrefix.Length..]));
         }
 
         Console.WriteLine($"{nameof(tbodyCount)}: {tbodyCount}");
@@ -123,9 +123,6 @@ public static partial class ChaseZelle
         }
         return result;
     }
-
-    [GeneratedRegex("^qpReceivedActivity_tBody_(.+)$")]
-    private static partial Regex TbodyIdPattern();
 
     /// <summary>
     /// Extracted from <see cref="HtmlNode.Descendants(string)"/>
