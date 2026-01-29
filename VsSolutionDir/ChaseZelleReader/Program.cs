@@ -1,4 +1,6 @@
-﻿namespace ChaseZelleReader
+﻿using System;
+
+namespace ChaseZelleReader
 {
     internal class Program
     {
