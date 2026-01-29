@@ -90,7 +90,7 @@ public static class ChaseZelle
                 ID: id,
                 Date: ParseCell(rowNode, "Date received "),
                 Status: ParseCell(rowNode, "Status", out var message),
-                Message: message,
+                Message: RemoveOuterQuotes(message),
                 Sender: ParseCell(rowNode, "Sender"),
                 Amount: ParseCell(rowNode, "Amount"),
                 TransactionNumber: ParseTransactionNumber(txNode)
@@ -123,6 +123,16 @@ public static class ChaseZelle
             subLabel = null;
         }
         return result;
+    }
+
+    private static string? RemoveOuterQuotes(string? input)
+    {
+        if (input == null || !input.StartsWith('"') || !input.EndsWith('"'))
+        {
+            return input;
+        }
+
+        return input[1..^1];
     }
 
     private static string? ParseTransactionNumber(HtmlNode txNode)
