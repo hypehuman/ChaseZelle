@@ -40,7 +40,7 @@ public static partial class ChaseZelle
         {
             using (var csvWriter = new StreamWriter(csvStream))
             {
-                RowData.Headers.WriteTo(csvWriter);
+                CsvRow.Headers.WriteTo(csvWriter);
                 foreach (var row in ParseHtml(htmlRoot))
                 {
                     row.WriteTo(csvWriter);
@@ -49,12 +49,12 @@ public static partial class ChaseZelle
         }
     }
 
-    private static IEnumerable<RowData> ParseHtml(HtmlNode htmlRoot)
+    private static IEnumerable<CsvRow> ParseHtml(HtmlNode htmlRoot)
     {
         int tbodyCount = 0;
         int tbodyIdCount = 0;
         int tbodyIdMatchCount = 0;
-        var activityRows = new List<(HtmlNode node, string id)>();
+        var txNodes = new List<(HtmlNode node, string id)>();
         foreach (var tbodyNode in htmlRoot.Descendants("tbody"))
         {
             tbodyCount++;
@@ -75,24 +75,24 @@ public static partial class ChaseZelle
 
             tbodyIdMatchCount++;
 
-            activityRows.Add((tbodyNode, idMatch.Groups[1].Value));
+            txNodes.Add((tbodyNode, idMatch.Groups[1].Value));
         }
 
         Console.WriteLine($"{nameof(tbodyCount)}: {tbodyCount}");
         Console.WriteLine($"{nameof(tbodyIdCount)}: {tbodyIdCount}");
         Console.WriteLine($"{nameof(tbodyIdMatchCount)}: {tbodyIdMatchCount}");
-        Console.WriteLine($"Number of unique parents of activity row nodes: {activityRows.Select(pair => pair.node.ParentNode).ToHashSet().Count}");
+        Console.WriteLine($"Number of unique parents of transaction nodes: {txNodes.Select(pair => pair.node.ParentNode).ToHashSet().Count}");
 
-        foreach (var (rowNode, id) in activityRows)
+        foreach (var (txNode, id) in txNodes)
         {
-            var txNode = rowNode.ChildNodes.Single(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("receivedTransaction_"));
+            var rowNode = txNode.ChildNodes.Single(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("receivedTransaction_"));
             yield return new(
                 ID: id,
-                Date: ParseCell(txNode, "Date received "),
-                Status: ParseCell(txNode, "Status", out var message),
+                Date: ParseCell(rowNode, "Date received "),
+                Status: ParseCell(rowNode, "Status", out var message),
                 Message: message,
-                Sender: ParseCell(txNode, "Sender"),
-                Amount: ParseCell(txNode, "Amount")
+                Sender: ParseCell(rowNode, "Sender"),
+                Amount: ParseCell(rowNode, "Amount")
             );
         }
     }
@@ -136,7 +136,8 @@ public static partial class ChaseZelle
     }
 
     /// <summary>
-    /// Adds quotes and escapes any internal quotes.
+    /// If <paramref name="str"/> is null, returns an empty string.
+    /// Otherwise, returns <paramref name="str"/> wrapped in quotes and with any internal quotes escaped.
     /// Adapted from https://stackoverflow.com/a/6377656
     /// </summary>
     private static string FormatCsvCell(string? str)
@@ -160,7 +161,7 @@ public static partial class ChaseZelle
         return sb.ToString();
     }
 
-    private record class RowData(
+    private record class CsvRow(
         string ID,
         string Date,
         string Status,
@@ -169,7 +170,7 @@ public static partial class ChaseZelle
         string Amount
     )
     {
-        public static RowData Headers => new(
+        public static CsvRow Headers => new(
             ID: nameof(ID),
             Date: nameof(Date),
             Status: nameof(Status),
