@@ -89,8 +89,8 @@ public static partial class ChaseZelle
             yield return new(
                 ID: id,
                 Date: ParseCell(txNode, "Date received "),
-                Status: ParseCell(txNode, "Status", out var memo),
-                Memo: memo,
+                Status: ParseCell(txNode, "Status", out var message),
+                Message: message,
                 Sender: ParseCell(txNode, "Sender"),
                 Amount: ParseCell(txNode, "Amount")
             );
@@ -164,7 +164,7 @@ public static partial class ChaseZelle
         string ID,
         string Date,
         string Status,
-        string? Memo,
+        string? Message,
         string Sender,
         string Amount
     )
@@ -173,7 +173,7 @@ public static partial class ChaseZelle
             ID: nameof(ID),
             Date: nameof(Date),
             Status: nameof(Status),
-            Memo: nameof(Memo),
+            Message: nameof(Message),
             Sender: nameof(Sender),
             Amount: nameof(Amount)
         );
@@ -185,7 +185,7 @@ public static partial class ChaseZelle
                 FormatCsvCell(ID),
                 FormatCsvCell(Date),
                 FormatCsvCell(Status),
-                FormatCsvCell(Memo),
+                FormatCsvCell(Message),
                 FormatCsvCell(Sender),
                 FormatCsvCell(Amount),
             };
