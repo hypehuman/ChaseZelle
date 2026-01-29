@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="ChaseZelleLib/ChaseZelleLib.csproj" Id="60dfff99-31b3-44c2-af9f-79ff67b0b292" />
   <Project Path="ChaseZelleReader/ChaseZelleReader.csproj" />
 </Solution>
