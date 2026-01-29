@@ -92,7 +92,8 @@ public static class ChaseZelle
                 Status: ParseCell(rowNode, "Status", out var message),
                 Message: message,
                 Sender: ParseCell(rowNode, "Sender"),
-                Amount: ParseCell(rowNode, "Amount")
+                Amount: ParseCell(rowNode, "Amount"),
+                TransactionNumber: ParseTransactionNumber(txNode)
             );
         }
     }
@@ -122,6 +123,19 @@ public static class ChaseZelle
             subLabel = null;
         }
         return result;
+    }
+
+    private static string? ParseTransactionNumber(HtmlNode txNode)
+    {
+        var detailsNode = txNode.ChildNodes.SingleOrDefault(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("showDetailTr_"));
+        if (detailsNode == null)
+        {
+            // Transaction details are collapsed, so the transaction number isn't shown.
+            return null;
+        }
+
+        var dataNode = detailsNode.Descendants("span").Single(n => n.Attributes["class"]?.Value == "DATA");
+        return dataNode.InnerText;
     }
 
     /// <summary>
@@ -158,13 +172,22 @@ public static class ChaseZelle
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Each property represents one cell of the CSV row.
+    /// </summary>
+    /// <param name="TransactionNumber">
+    /// For transactions from Chase to Chase, this appears to be the same as <paramref name="ID"/>.
+    /// For transactions from other banks, this is different from <paramref name="ID"/> and may include letters.
+    /// Only visible if the transaction details were expanded on the website.
+    /// </param>
     private record class CsvRow(
         string ID,
         string Date,
         string Status,
         string? Message,
         string Sender,
-        string Amount
+        string Amount,
+        string? TransactionNumber
     )
     {
         public static CsvRow Headers => new(
@@ -173,7 +196,8 @@ public static class ChaseZelle
             Status: nameof(Status),
             Message: nameof(Message),
             Sender: nameof(Sender),
-            Amount: nameof(Amount)
+            Amount: nameof(Amount),
+            TransactionNumber: nameof(TransactionNumber)
         );
 
         public void WriteTo(StreamWriter writer)
@@ -186,6 +210,7 @@ public static class ChaseZelle
                 FormatCsvCell(Message),
                 FormatCsvCell(Sender),
                 FormatCsvCell(Amount),
+                FormatCsvCell(TransactionNumber),
             };
 
             var rowStr = string.Join(',', cells);
