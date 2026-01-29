@@ -1,6 +1,6 @@
 Extracts Zelle transaction information from the Chase Bank website.
 
-DISCLAIMER: No guarantees are made. Use at your own risk.
+DISCLAIMER: No guarantees are made. Use at your own risk. May not work correctly, and may cause damage.
 
 Currently only implements one feature: generating a CSV file from the list of received payments. Any future redesign of the Chase website will break this feature.
 
@@ -8,6 +8,7 @@ Instructions:
 - Build the .NET solution from this project's source code. You should end up with a file called `ChaseZelleReader.exe`.
 - Log in to chase.com using the Chrome browser.
 - Click "Pay & Transfer" -> "Payment Activity" -> "Money Received". You should see the list of received payments.
+- Expand all transactions. (Optional; this step allows us to load the transaction numbers.)
 - Right-click on an empty part of the page and choose "Inspect". You should see the Elements tab.
 - Right-click the root `<html` element and choose "Copy" => "Copy Element".
 - Paste into a text editor and save the file.
