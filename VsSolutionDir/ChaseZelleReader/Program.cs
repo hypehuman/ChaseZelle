@@ -15,6 +15,6 @@ internal class Program
         }
 
         var htmlPath = args[0];
-        ChaseZelle.HtmlToXml(htmlPath);
+        ChaseZelle.HtmlToCsv(htmlPath);
     }
 }

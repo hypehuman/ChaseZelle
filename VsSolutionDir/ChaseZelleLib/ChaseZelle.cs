@@ -3,47 +3,53 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 
 namespace ChaseZelleLib;
 
 public static partial class ChaseZelle
 {
-    public static void HtmlToXml(string htmlPath)
+    public static void HtmlToCsv(string htmlPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(htmlPath);
 
         var htmlExtension = Path.GetExtension(htmlPath);
         var pathWithoutExtension = htmlPath[..^htmlExtension.Length];
-        var xmlPath = pathWithoutExtension + ".xml";
+        var csvPath = pathWithoutExtension + ".csv";
 
-        HtmlToXml(htmlPath, xmlPath);
+        HtmlToCsv(htmlPath, csvPath);
     }
 
-    public static void HtmlToXml(string htmlPath, string xmlPath)
+    public static void HtmlToCsv(string htmlPath, string csvPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(htmlPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(xmlPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(csvPath);
 
         var htmlDoc = new HtmlDocument();
         htmlDoc.Load(htmlPath);
+        var htmlRoot = htmlDoc.DocumentNode;
 
-        var xmlRoot = HtmlToXml(htmlDoc.DocumentNode);
-
-        var xmlDir = Path.GetDirectoryName(xmlPath);
-        if (!Directory.Exists(xmlDir))
+        var csvDir = Path.GetDirectoryName(csvPath);
+        if (!Directory.Exists(csvDir))
         {
-            Directory.CreateDirectory(xmlDir);
+            Directory.CreateDirectory(csvDir);
         }
 
-        using (var xmlStream = new FileStream(xmlPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+        using (var csvStream = new FileStream(csvPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
         {
-            xmlRoot.Save(xmlStream);
+            using (var csvWriter = new StreamWriter(csvStream))
+            {
+                RowData.Headers.WriteTo(csvWriter);
+                foreach (var row in ParseHtml(htmlRoot))
+                {
+                    row.WriteTo(csvWriter);
+                }
+            }
         }
     }
 
-    public static XElement HtmlToXml(HtmlNode htmlRoot)
+    private static IEnumerable<RowData> ParseHtml(HtmlNode htmlRoot)
     {
         int tbodyCount = 0;
         int tbodyIdCount = 0;
@@ -77,23 +83,18 @@ public static partial class ChaseZelle
         Console.WriteLine($"{nameof(tbodyIdMatchCount)}: {tbodyIdMatchCount}");
         Console.WriteLine($"Number of unique parents of activity row nodes: {activityRows.Select(pair => pair.node.ParentNode).ToHashSet().Count}");
 
-        var xmlRoot = new XElement("Transactions");
         foreach (var (rowNode, id) in activityRows)
         {
             var txNode = rowNode.ChildNodes.Single(n => n.NameEquals("tr") && (n.Attributes["id"]?.Value ?? "").StartsWith("receivedTransaction_"));
-            var txElement = new XElement(
-                "Transaction",
-                new XElement("ID", id),
-                new XElement("Date", ParseCell(txNode, "Date received ")),
-                new XElement("Status", ParseCell(txNode, "Status", out var memo)),
-                new XElement("Memo", memo),
-                new XElement("Sender", ParseCell(txNode, "Sender")),
-                new XElement("Amount", ParseCell(txNode, "Amount"))
+            yield return new(
+                ID: id,
+                Date: ParseCell(txNode, "Date received "),
+                Status: ParseCell(txNode, "Status", out var memo),
+                Memo: memo,
+                Sender: ParseCell(txNode, "Sender"),
+                Amount: ParseCell(txNode, "Amount")
             );
-            xmlRoot.Add(txElement);
         }
-
-        return xmlRoot;
     }
 
     private static string ParseCell(HtmlNode rowNode, string header)
@@ -132,5 +133,65 @@ public static partial class ChaseZelle
     internal static bool NameEquals(this HtmlNode node, string name)
     {
         return String.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Adds quotes and escapes any internal quotes.
+    /// Adapted from https://stackoverflow.com/a/6377656
+    /// </summary>
+    private static string FormatCsvCell(string? str)
+    {
+        if (str == null)
+        {
+            return "";
+        }
+
+        var sb = new StringBuilder();
+        sb.Append('"');
+        foreach (char nextChar in str)
+        {
+            sb.Append(nextChar);
+            if (nextChar == '"')
+            {
+                sb.Append('"');
+            }
+        }
+        sb.Append('"');
+        return sb.ToString();
+    }
+
+    private record class RowData(
+        string ID,
+        string Date,
+        string Status,
+        string? Memo,
+        string Sender,
+        string Amount
+    )
+    {
+        public static RowData Headers => new(
+            ID: nameof(ID),
+            Date: nameof(Date),
+            Status: nameof(Status),
+            Memo: nameof(Memo),
+            Sender: nameof(Sender),
+            Amount: nameof(Amount)
+        );
+
+        public void WriteTo(StreamWriter writer)
+        {
+            var cells = new[]
+            {
+                FormatCsvCell(ID),
+                FormatCsvCell(Date),
+                FormatCsvCell(Status),
+                FormatCsvCell(Memo),
+                FormatCsvCell(Sender),
+                FormatCsvCell(Amount),
+            };
+
+            var rowStr = string.Join(',', cells);
+            writer.WriteLine(rowStr);
+        }
     }
 }
