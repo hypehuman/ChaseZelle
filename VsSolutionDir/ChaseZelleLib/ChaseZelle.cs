@@ -40,7 +40,7 @@ public static class ChaseZelle
             using (var csvWriter = new StreamWriter(csvStream))
             {
                 CsvRow.Headers.WriteTo(csvWriter);
-                foreach (var row in ParseHtml(htmlRoot))
+                foreach (var row in ParseHtml(htmlRoot).Reverse())
                 {
                     row.WriteTo(csvWriter);
                 }
