@@ -40,7 +40,9 @@ public static class ChaseZelle
             using (var csvWriter = new StreamWriter(csvStream))
             {
                 CsvRow.Headers.WriteTo(csvWriter);
-                foreach (var row in ParseHtml(htmlRoot).Reverse())
+                // Chase orders the transactions inconsistently between sessions,
+                // so let's sort by ID instead.
+                foreach (var row in ParseHtml(htmlRoot).OrderBy(r => r.ID))
                 {
                     row.WriteTo(csvWriter);
                 }
