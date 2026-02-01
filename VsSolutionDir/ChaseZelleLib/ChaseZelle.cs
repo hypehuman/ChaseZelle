@@ -35,12 +35,33 @@ public static class ChaseZelle
             Directory.CreateDirectory(csvDir);
         }
 
+        var rows = new List<CsvRow>
+        {
+            CsvRow.Headers
+        };
+
+        // Chase orders the transactions inconsistently between sessions,
+        // so let's sort by ID instead.
+        string? prevId = null;
+        foreach (var row in ParseHtml(htmlRoot).OrderBy(r => r.ID))
+        {
+            if (prevId == row.ID)
+            {
+                // This is a bug in Chase's website, and I've seen this actually happen.
+                // In this case, one transaction is duplicated and another is missing.
+                throw new InvalidDataException($"Duplicate ID: {row.ID} - this is a bug in Chase's website. Please restart your browser and reload the data.");
+            }
+
+            prevId = row.ID;
+
+            rows.Add(row);
+        }
+
         using (var csvStream = new FileStream(csvPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
         {
             using (var csvWriter = new StreamWriter(csvStream))
             {
-                CsvRow.Headers.WriteTo(csvWriter);
-                foreach (var row in ParseHtml(htmlRoot).Reverse())
+                foreach (var row in rows)
                 {
                     row.WriteTo(csvWriter);
                 }
