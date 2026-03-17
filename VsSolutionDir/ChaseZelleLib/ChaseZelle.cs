@@ -133,11 +133,11 @@ public static class ChaseZelle
     {
         var cellNode = rowNode.ChildNodes.Single(n => n.NameEquals("td") && n.Attributes["data-th"]?.Value == header);
         var span = cellNode.ChildNodes.Single(n => n.NameEquals("span"));
-        var result = span.InnerText;
+        var result = span.InnerTextDecoded();
         if (parseSubLabel)
         {
             var div = cellNode.ChildNodes.SingleOrDefault(n => n.NameEquals("div") && n.Attributes["class"]?.Value == "subLabel");
-            subLabel = div?.InnerText;
+            subLabel = div?.InnerTextDecoded();
         }
         else
         {
@@ -166,7 +166,7 @@ public static class ChaseZelle
         }
 
         var dataNode = detailsNode.Descendants("span").Single(n => n.Attributes["class"]?.Value == "DATA");
-        return dataNode.InnerText;
+        return dataNode.InnerTextDecoded();
     }
 
     /// <summary>
